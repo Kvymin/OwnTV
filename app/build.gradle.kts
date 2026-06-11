@@ -17,8 +17,10 @@ android {
         applicationId = "tv.own.owntv"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        // CI injects these from the git tag (see .github/workflows/android.yml) so releases never
+        // need a manual edit here. The fallbacks are only used for local/debug builds.
+        versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
+        versionName = System.getenv("VERSION_NAME") ?: "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

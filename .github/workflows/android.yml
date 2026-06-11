@@ -36,12 +36,21 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Read app version
+      - name: Compute version (from the git tag on releases)
         id: ver
         run: |
-          V=$(grep -m1 'versionName' app/build.gradle.kts | grep -oE '"[^"]+"' | tr -d '"')
-          echo "name=$V" >> "$GITHUB_OUTPUT"
-          echo "App version: $V"
+          if [ "$IS_TAG" = "true" ]; then
+            NAME="${GITHUB_REF_NAME#v}"                 # tag v1.2.0 -> 1.2.0
+            IFS='.' read -r MA MI PA <<< "$NAME"
+            CODE=$(( ${MA:-0} * 10000 + ${MI:-0} * 100 + ${PA:-0} ))   # 1.2.0 -> 10200
+            [ "$CODE" -gt 0 ] || CODE=1
+          else
+            NAME="0.0.0"
+            CODE=1
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Version: $NAME (code $CODE)"
 
       - name: Decode signing keystore (if configured)
         if: env.IS_TAG == 'true'
@@ -58,6 +67,8 @@ jobs:
 
       - name: Build APK
         env:
+          VERSION_NAME: ${{ steps.ver.outputs.name }}
+          VERSION_CODE: ${{ steps.ver.outputs.code }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
@@ -77,12 +88,11 @@ jobs:
 
       - name: Name the APK (OwnTV-v<version>)
         run: |
-          VER="${{ steps.ver.outputs.name }}"
           mkdir -p dist
           if [ "$IS_TAG" = "true" ]; then
-            OUT="OwnTV-v${VER}.apk"
+            OUT="OwnTV-v${{ steps.ver.outputs.name }}.apk"
           else
-            OUT="OwnTV-v${VER}-${GITHUB_SHA::7}.apk"
+            OUT="OwnTV-dev-${GITHUB_SHA::7}.apk"
           fi
           cp "$APK_SRC" "dist/$OUT"
           echo "APK_OUT=$OUT" >> "$GITHUB_ENV"
